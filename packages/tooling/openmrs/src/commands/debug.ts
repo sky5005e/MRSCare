@@ -1,0 +1,55 @@
+import { createRequire } from 'node:module';
+import type { ImportmapDeclaration } from '../utils';
+import { loadBundlerConfig, logInfo, logWarn } from '../utils';
+
+export interface DebugArgs {
+  port: number;
+  host: string;
+  backend: string;
+  importmap: ImportmapDeclaration;
+  supportOffline?: boolean;
+  spaPath: string;
+  apiUrl: string;
+  configUrls: Array<string>;
+  addCookie: string;
+}
+
+export function runDebug(args: DebugArgs) {
+  const require = createRequire(import.meta.url);
+  const webpack = require('webpack');
+  const WebpackDevServer = require('webpack-dev-server');
+
+  const config = loadBundlerConfig({
+    importmap: args.importmap,
+    backend: args.backend,
+    apiUrl: args.apiUrl,
+    supportOffline: args.supportOffline,
+    spaPath: args.spaPath,
+    configUrls: args.configUrls,
+    addCookie: args.addCookie,
+    env: 'development',
+  });
+
+  logInfo(`Starting the dev server ...`);
+
+  const { host, port } = args;
+  const options = {
+    ...(config['devServer'] ?? {}),
+    port,
+    host,
+    publicPath: args.spaPath,
+    stats: { colors: true },
+  };
+
+  const server = new WebpackDevServer(webpack(config), options);
+
+  server.listen(port, host, (err?: Error) => {
+    if (err) {
+      logWarn(`Error: ${err}`);
+    } else {
+      logInfo(`Listening at http://${host}:${port}`);
+    }
+  });
+
+  return new Promise<void>(() => {});
+}

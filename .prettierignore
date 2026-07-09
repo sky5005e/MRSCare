@@ -1,0 +1,9 @@
+dist/
+README.md
+docs/
+*.svg
+*.png
+*.ico
+*.ejs
+packages/esm-styleguide/src/**/*.html
+.github/

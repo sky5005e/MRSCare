@@ -1,0 +1,14 @@
+{
+  "AppMenuTooltip": "Menu do Aplicativo",
+  "cancel": "Cancelar",
+  "change": "Alterar",
+  "changeDefaultLocale": "Atualize seu local padrão",
+  "changeDefaultLocaleExplanation": "Deixe esta opção desmarcada para alterar o idioma apenas nesta sessão",
+  "changeLanguage": "Alterar idioma",
+  "changingLanguage": "Alterando idioma",
+  "noPathInDashboardExtension": "Não é possível renderizar a extensão do painel sem que a propriedade \"path\" esteja definida no esquema de configuração",
+  "notifications": "Notificações",
+  "userMenu": "Menu do usuário",
+  "userMenuOptions": "Opções do menu do usuário",
+  "userMenuTooltip": "Minha Conta"
+}
