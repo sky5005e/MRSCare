@@ -162,8 +162,10 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
 
     // Listen for messages
     socket.onmessage = (event) => {
-      console.log('Received:', JSON.parse(event.data));
-      console.log('event.data.payload.reader:', JSON.parse(event.data).payload.reader);
+      const data = JSON.parse(event.data);
+
+      console.log('Received:', data.payload);
+      console.log('payload :', data.payload.reader);
 
       //alert(`Received: ${event.data}`);
 
@@ -244,6 +246,9 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
           const newupdatedFormValues = response.data;
           console.log(newupdatedFormValues);
           setTimeout(() => {
+            console.log('Calling savePatientForm with values:', newupdatedFormValues);
+            debugger;
+            console.log('initialFormValues.identifiers', initialFormValues['identifiers']);
             savePatientForm(
               !inEditMode,
               newupdatedFormValues,
@@ -278,7 +283,7 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
             });
 
             setTarget(redirectUrl);
-          }, 3000);
+          }, 4000);
         })
         .catch((error) => {
           console.error('Error posting data:', error);
