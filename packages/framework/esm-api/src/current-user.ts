@@ -266,8 +266,8 @@ export function userHasAccess(
     return true;
   }
 
-  //return userHasPrivilege(requiredPrivilege, user); //|| isSuperUser(user);
-  return userHasPrivilege(requiredPrivilege, user)|| isSuperUser(user);
+  return userHasPrivilege(requiredPrivilege, user); //|| isSuperUser(user);
+  //return userHasPrivilege(requiredPrivilege, user)|| isSuperUser(user);
 }
 
 /**

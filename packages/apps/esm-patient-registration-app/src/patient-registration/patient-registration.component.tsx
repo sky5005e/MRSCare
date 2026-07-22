@@ -12,7 +12,8 @@ import {
   useConfig,
   usePatient,
   usePatientPhoto,
-  openmrsFetch
+  openmrsFetch,
+  ExtensionSlot,
 } from '@openmrs/esm-framework';
 import { builtInSections, type RegistrationConfig, type SectionDefinition } from '../config-schema';
 import { cancelRegistration, filterOutUndefinedPatientIdentifiers, scrollIntoView } from './patient-registration-utils';
@@ -26,7 +27,6 @@ import { type SavePatientForm, SavePatientTransactionManager } from './form-mana
 import { useInitialAddressFieldValues, useInitialFormValues, usePatientUuidMap } from './patient-registration-hooks';
 import BeforeSavePrompt from './before-save-prompt.component';
 import styles from './patient-registration.scss';
-import { ExtensionSlot } from '@openmrs/esm-framework';
 
 let exportedInitialFormValuesForTesting = {} as FormValues;
 
@@ -71,78 +71,139 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
   const validationSchema = getValidationSchema(config, t);
 
   function InitialDataLoader({ setFieldValue }) {
-  useEffect(() => {
-    const loadPatient = async () => {
-    try {
-        const encoded = window.localStorage.getItem('EncqB64-user');
-        const user = encoded ? JSON.parse(atob(encoded)) : null;
-        //console.log(user);    // Parsed object
-      
-          const result = await openmrsFetch<{ identifier: string }>(
-            'http://127.0.0.1:8765/api/rest/v1/patient/id',
-            {
-            method: 'GET',
-            headers: {
-              'Authorization': 'Bearer ' + user.accessToken
-            }
-          });
-          if (!result.data) {
-            //alert("Failed to read patient");
-            return;
-          }
-          setFieldValue('identifiers.idCard.identifierValue', result.data.identifier);
-          } catch (e) {
-          console.error(e);
-
-          alert('Failed to read patient');
-        }
-    };
-
-    loadPatient();
-  }, [setFieldValue]);
-
-  return null;
-}
-
-
-const handlePageLoad = async (isEditMode: boolean) => {
-console.log("handlePageLoad called");
-    if (isEditMode) {
+    const isEditMode = !!(uuidOfPatientToEdit && patientToEdit);
+    console.log('Is Edit Mode:', isEditMode);
+    if (!isEditMode) {
+      useEffect(() => {
+        const loadPatient = async () => {
           try {
-            // debugger;
-            const payload = initialFormValues;
             const encoded = window.localStorage.getItem('EncqB64-user');
             const user = encoded ? JSON.parse(atob(encoded)) : null;
-            // Making the POST request
-            await openmrsFetch(`http://127.0.0.1:8765/api/rest/v1/patient/decrypt`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + user.accessToken
-            },
-            body: payload
-        })
-        .then(response => {
-          // response.data holds the parsed JSON body
-          // Set address fields from response
-          if (response.data.address) {
-            initialFormValues.address = response.data.address;
-          }
-        })
-        .catch(error => {
-          console.error("Error posting data:", error);
-        });
+            //console.log(user);    // Parsed object
 
-      } catch (error) {
-      };
+            const result = await openmrsFetch<{ identifier: string }>('http://localhost:8765/api/rest/v1/patient/id', {
+              method: 'GET',
+              headers: {
+                Authorization: 'Bearer ' + user.accessToken,
+              },
+            });
+            if (!result.data) {
+              //alert("Failed to read patient");
+              return;
+            }
+            setFieldValue('identifiers.idCard.identifierValue', result.data.identifier);
+          } catch (e) {
+            console.error(e);
+
+            //alert('Failed to read patient');
+          }
+        };
+
+        loadPatient();
+      }, [setFieldValue]);
+
+      return null;
+    } else {
+      return null;
     }
-};
+  }
+
+  const handlePageLoad = async (isEditMode: boolean) => {
+    console.log('handlePageLoad called');
+    const identifierValue = initialFormValues.identifiers;
+    if (isEditMode && identifierValue && identifierValue.idCard) {
+      try {
+        const payload = initialFormValues;
+        const encoded = window.localStorage.getItem('EncqB64-user');
+        const user = encoded ? JSON.parse(atob(encoded)) : null;
+        // Making the POST request
+        await openmrsFetch(`http://localhost:8765/api/rest/v1/patient/decrypt`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + user.accessToken,
+          },
+          body: payload,
+        })
+          .then((response) => {
+            // response.data holds the parsed JSON body
+            // Set address fields from response
+            console.log('Response from decrypt API:', response.data);
+            setTimeout(() => {
+              if (response.data.address) {
+                initialFormValues.address = response.data.address;
+              }
+            }, 500);
+          })
+          .catch((error) => {
+            console.error('Error posting data:', error);
+          });
+      } catch (error) {}
+    }
+  };
+
+  const handleWSConnection = async () => {
+    console.log('handleWSConnection called');
+    // Create WebSocket connection
+    const socket = new WebSocket('ws://localhost:8765/api/ws/v1/smartcard/?token=12');
+
+    // Connection opened
+    socket.onopen = () => {
+      console.log('Connected to WebSocket server');
+
+      // Send a message
+      socket.send(
+        JSON.stringify({
+          type: 'hello',
+          message: 'Hello Server',
+        }),
+      );
+    };
+
+    // Listen for messages
+    socket.onmessage = (event) => {
+      console.log('Received:', JSON.parse(event.data));
+      console.log('event.data.payload.reader:', JSON.parse(event.data).payload.reader);
+
+      //alert(`Received: ${event.data}`);
+
+      showSnackbar({
+        isLowContrast: true,
+        kind: 'warning',
+        title: 'Card Reader Event',
+        subtitle: JSON.parse(event.data).payload?.reader
+          ? `Card Reader: ${JSON.parse(event.data).payload.reader}`
+          : 'No reader information available',
+      });
+    };
+
+    // Handle errors
+    socket.onerror = (error) => {
+      console.error('WebSocket Error:', error);
+    };
+
+    // Handle connection close
+    socket.onclose = () => {
+      console.log('Disconnected from WebSocket server');
+    };
+
+    // Cleanup on component unmount
+    return () => {
+      socket.close();
+    };
+  };
 
   useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('Initial Form Values:', initialFormValues);
     exportedInitialFormValuesForTesting = initialFormValues;
     //console.log(initialFormValues);
-    console.log("Is Edit Page",inEditMode);
+    // eslint-disable-next-line no-console
+    console.log('Is Edit Page', inEditMode);
     handlePageLoad(inEditMode);
+    // eslint-disable-next-line no-console
+    console.log('handle WS Connection', 'handleWSConnection');
+    handleWSConnection();
   }, [initialFormValues]);
 
   const sections: Array<SectionDefinition> = useMemo(() => {
@@ -160,41 +221,68 @@ console.log("handlePageLoad called");
     helpers.setSubmitting(true);
 
     const updatedFormValues = { ...values, identifiers: filterOutUndefinedPatientIdentifiers(values.identifiers) };
+    console.log('filterOutUndefinedPatientIdentifiers : ', filterOutUndefinedPatientIdentifiers(values.identifiers));
     try {
       const encoded = window.localStorage.getItem('EncqB64-user');
       const user = encoded ? JSON.parse(atob(encoded)) : null;
-      // debugger;
+
       const payload = updatedFormValues;
       // Making the POST request
-      await openmrsFetch(`http://127.0.0.1:8765/api/rest/v1/patient/encrypt`, {
+      await openmrsFetch(`http://localhost:8765/api/rest/v1/patient/encrypt`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + user.accessToken
-      },
-      body: payload
-  })
-  .then(response => {
-    // response.data holds the parsed JSON body
-   console.log(updatedFormValues);
-     savePatientForm(
-        !inEditMode,
-        response.data,
-        patientUuidMap,
-        initialAddressFieldValues,
-        capturePhotoProps,
-        location,
-        initialFormValues['identifiers'],
-        currentSession,
-        config,
-        savePatientTransactionManager.current,
-        abortController,
-      );
+          Authorization: 'Bearer ' + user.accessToken,
+        },
+        body: payload,
+      })
+        .then((response) => {
+          // response.data holds the parsed JSON body
 
-  })
-  .catch(error => {
-    console.error("Error posting data:", error);
-  });
+          console.log('Response from encrypt API:', response.data);
+          console.log(updatedFormValues);
+          const newupdatedFormValues = response.data;
+          console.log(newupdatedFormValues);
+          setTimeout(() => {
+            savePatientForm(
+              !inEditMode,
+              newupdatedFormValues,
+              patientUuidMap,
+              initialAddressFieldValues,
+              capturePhotoProps,
+              location,
+              initialFormValues['identifiers'],
+              currentSession,
+              config,
+              savePatientTransactionManager.current,
+              abortController,
+            );
+
+            showSnackbar({
+              subtitle: inEditMode
+                ? t('updatePatientSuccessSnackbarSubtitle', "The patient's information has been successfully updated")
+                : t(
+                    'registerPatientSuccessSnackbarSubtitle',
+                    'The patient can now be found by searching for them using their name or ID number',
+                  ),
+              title: inEditMode
+                ? t('updatePatientSuccessSnackbarTitle', 'Patient Details Updated')
+                : t('registerPatientSuccessSnackbarTitle', 'New Patient Created'),
+              kind: 'success',
+              isLowContrast: true,
+            });
+
+            const afterUrl = new URLSearchParams(search).get('afterUrl');
+            const redirectUrl = interpolateUrl(afterUrl || config.links.submitButton, {
+              patientUuid: values.patientUuid,
+            });
+
+            setTarget(redirectUrl);
+          }, 3000);
+        })
+        .catch((error) => {
+          console.error('Error posting data:', error);
+        });
 
       // await savePatientForm(
       //   !inEditMode,
@@ -209,25 +297,6 @@ console.log("handlePageLoad called");
       //   savePatientTransactionManager.current,
       //   abortController,
       // );
-
-      showSnackbar({
-        subtitle: inEditMode
-          ? t('updatePatientSuccessSnackbarSubtitle', "The patient's information has been successfully updated")
-          : t(
-              'registerPatientSuccessSnackbarSubtitle',
-              'The patient can now be found by searching for them using their name or ID number',
-            ),
-        title: inEditMode
-          ? t('updatePatientSuccessSnackbarTitle', 'Patient Details Updated')
-          : t('registerPatientSuccessSnackbarTitle', 'New Patient Created'),
-        kind: 'success',
-        isLowContrast: true,
-      });
-
-      const afterUrl = new URLSearchParams(search).get('afterUrl');
-      const redirectUrl = interpolateUrl(afterUrl || config.links.submitButton, { patientUuid: values.patientUuid });
-
-      setTarget(redirectUrl);
     } catch (error) {
       if (error.responseBody?.error?.globalErrors) {
         error.responseBody.error.globalErrors.forEach((error) => {
@@ -306,7 +375,8 @@ console.log("handlePageLoad called");
       enableReinitialize
       initialValues={initialFormValues}
       onSubmit={onFormSubmit}
-      validationSchema={validationSchema}>
+      validationSchema={validationSchema}
+    >
       {(props) => (
         <Form className={styles.form}>
           <InitialDataLoader setFieldValue={props.setFieldValue} />
@@ -329,7 +399,7 @@ console.log("handlePageLoad called");
                 </div>
               ))}
               <hr className={styles.divider} />
-              
+
               <Button
                 className={styles.submitButton}
                 type="submit"
@@ -337,7 +407,8 @@ console.log("handlePageLoad called");
                 // Current session and identifiers are required for patient registration.
                 // If currentSession or identifierTypes are not available, then the
                 // user should be blocked to register the patient.
-                disabled={!currentSession || !identifierTypes || props.isSubmitting}>
+                disabled={!currentSession || !identifierTypes || props.isSubmitting}
+              >
                 {props.isSubmitting ? (
                   <InlineLoading
                     className={styles.spinner}

@@ -12,7 +12,7 @@ import {
   useConfig,
   useConnectivity,
   useSession,
-  openmrsFetch
+  openmrsFetch,
 } from '@openmrs/esm-framework';
 import { type ConfigSchema } from '../config-schema';
 import Logo from '../logo.component';
@@ -121,51 +121,71 @@ const Login: React.FC = () => {
         setIsLoggingIn(true);
         const sessionStore = await refetchCurrentUser(currentUsername, currentPassword);
         const session = sessionStore.session;
-        const authenticated = sessionStore?.session?.authenticated;
+        let authenticated = sessionStore?.session?.authenticated;
         console.log('Login attempt result:', { authenticated, session });
-
-        
-        try {
-            // debugger;
+        if (authenticated) {
+          try {
             const payload = {
               username: currentUsername,
               systemId: session?.user?.systemId,
-              };
+            };
             // Making the POST request
-            await openmrsFetch(`http://127.0.0.1:8765/api/rest/v1/session/`, {
+            await openmrsFetch(`http://localhost:8765/api/rest/v1/session/`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: payload
+              body: payload,
             })
-            .then(response => {
+              .then((response) => {
+                console.log('Response from POST request:', response);
                 if (response.data) {
                   console.log('Data Received successfully:', response.data);
-                  window.localStorage.setItem('EncqB64-user', btoa(JSON.stringify(response.data)));
+                  if (response.data.accessToken) {
+                    authenticated = true;
+                    window.localStorage.setItem('EncqB64-user', btoa(JSON.stringify(response.data)));
+
+                    if (authenticated) {
+                      if (session.sessionLocation) {
+                        let to = loginLinks?.loginSuccess || '/home';
+                        if (location?.state?.referrer) {
+                          // Only accept relative paths; absolute or protocol-relative referrers
+                          // are silently ignored to prevent open-redirect attacks after login.
+                          if (location.state.referrer.startsWith('/')) {
+                            to = `\${openmrsSpaBase}${location.state.referrer}`;
+                          }
+                        }
+
+                        openmrsNavigate({ to });
+                      } else {
+                        navigate('/login/location');
+                      }
+                    } else {
+                      setErrorMessage(t('invalidCredentials', 'Invalid username or password'));
+                      setUsername('');
+                      setPassword('');
+                      if (showPasswordOnSeparateScreen) {
+                        setShowPasswordField(false);
+                      }
+                    }
+
+                    return true;
+                  } else {
+                    authenticated = false;
+                    setErrorMessage('Smart card agent is not running!');
+                    return false;
+                  }
                 }
-            })
-            .catch(error => {
-                console.error("Error posting data:", error);
-            });
-
-        } catch (error) {
-        };
-
-        if (authenticated) {
-          if (session.sessionLocation) {
-            let to = loginLinks?.loginSuccess || '/home';
-            if (location?.state?.referrer) {
-              // Only accept relative paths; absolute or protocol-relative referrers
-              // are silently ignored to prevent open-redirect attacks after login.
-              if (location.state.referrer.startsWith('/')) {
-                to = `\${openmrsSpaBase}${location.state.referrer}`;
-              }
-            }
-
-            openmrsNavigate({ to });
-          } else {
-            navigate('/login/location');
+              })
+              .catch((error) => {
+                console.error('Error during POST request 1:', error);
+                setErrorMessage(error.responseBody.detail || 'Smart card agent is not running!');
+                return false;
+              });
+          } catch (error) {
+            console.error('Error during POST request 2:', error);
+            setErrorMessage('Smart card agent is not running!');
+            return false;
           }
         } else {
           setErrorMessage(t('invalidCredentials', 'Invalid username or password'));
