@@ -102,7 +102,6 @@ const Login: React.FC = () => {
     async (evt: React.FormEvent<HTMLFormElement>) => {
       evt.preventDefault();
       evt.stopPropagation();
-
       // If credentials were autofilled, input onChange might not have been called
       const currentUsername = usernameInputRef.current?.value?.trim() || username;
       const currentPassword = passwordInputRef.current?.value || password;
@@ -119,6 +118,7 @@ const Login: React.FC = () => {
 
       try {
         setIsLoggingIn(true);
+
         const sessionStore = await refetchCurrentUser(currentUsername, currentPassword);
         const session = sessionStore.session;
         let authenticated = sessionStore?.session?.authenticated;
@@ -129,60 +129,70 @@ const Login: React.FC = () => {
               username: currentUsername,
               systemId: session?.user?.systemId,
             };
-            // Making the POST request
-            await openmrsFetch(`http://localhost:8765/api/rest/v1/session/`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: payload,
-            })
-              .then((response) => {
-                console.log('Response from POST request:', response);
-                if (response.data) {
-                  console.log('Data Received successfully:', response.data);
-                  if (response.data.accessToken) {
-                    authenticated = true;
-                    window.localStorage.setItem('EncqB64-user', btoa(JSON.stringify(response.data)));
 
-                    if (authenticated) {
-                      if (session.sessionLocation) {
-                        let to = loginLinks?.loginSuccess || '/home';
-                        if (location?.state?.referrer) {
-                          // Only accept relative paths; absolute or protocol-relative referrers
-                          // are silently ignored to prevent open-redirect attacks after login.
-                          if (location.state.referrer.startsWith('/')) {
-                            to = `\${openmrsSpaBase}${location.state.referrer}`;
-                          }
+            await window
+              .fetch('http://localhost:8765/api/rest/v1/session/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+              })
+              .then(async (response) => {
+                const responseBody = await response.text(); // or response.json()
+                console.log('Response from POST request:', responseBody);
+                if (response.status === 401) {
+                  console.log('Unauthorized response from POST request:', responseBody);
+                  setErrorMessage('Unauthorized. Please log in again. ' + JSON.parse(responseBody).detail);
+                  //return;
+                  setIsLoggingIn(false);
+                  return false;
+                }
+                if (responseBody) {
+                  authenticated = true;
+                  window.localStorage.setItem('EncqB64-user', btoa(JSON.stringify(responseBody)));
+                  if (authenticated) {
+                    if (session.sessionLocation) {
+                      let to = loginLinks?.loginSuccess || '/home';
+                      if (location?.state?.referrer) {
+                        // Only accept relative paths; absolute or protocol-relative referrers
+                        // are silently ignored to prevent open-redirect attacks after login.
+                        if (location.state.referrer.startsWith('/')) {
+                          to = `\${openmrsSpaBase}${location.state.referrer}`;
                         }
-
-                        openmrsNavigate({ to });
-                      } else {
-                        navigate('/login/location');
                       }
+
+                      openmrsNavigate({ to });
                     } else {
-                      setErrorMessage(t('invalidCredentials', 'Invalid username or password'));
-                      setUsername('');
-                      setPassword('');
-                      if (showPasswordOnSeparateScreen) {
-                        setShowPasswordField(false);
-                      }
+                      navigate('/login/location');
                     }
-
-                    return true;
                   } else {
-                    authenticated = false;
-                    setErrorMessage('Smart card agent is not running!');
-                    return false;
+                    setErrorMessage(t('invalidCredentials', 'Invalid username or password'));
+                    setUsername('');
+                    setPassword('');
+                    if (showPasswordOnSeparateScreen) {
+                      setShowPasswordField(false);
+                    }
                   }
+                  return true;
+                } else {
+                  setUsername('');
+                  setPassword('');
+                  authenticated = false;
+                  setErrorMessage('Smart card agent is not running!');
+                  return false;
                 }
               })
               .catch((error) => {
-                console.error('Error during POST request 1:', error);
-                setErrorMessage(error.responseBody.detail || 'Smart card agent is not running!');
+                setUsername('');
+                setPassword('');
+                console.error('Error during POST request 3:', error);
+                setErrorMessage('Smart card agent is not running!');
                 return false;
               });
           } catch (error) {
+            setUsername('');
+            setPassword('');
             console.error('Error during POST request 2:', error);
             setErrorMessage('Smart card agent is not running!');
             return false;
@@ -195,7 +205,6 @@ const Login: React.FC = () => {
             setShowPasswordField(false);
           }
         }
-
         return true;
       } catch (error: unknown) {
         if (error instanceof Error) {
