@@ -84,21 +84,8 @@ const Login: React.FC = () => {
   const changeUsername = useCallback((evt: React.ChangeEvent<HTMLInputElement>) => setUsername(evt.target.value), []);
   const changePassword = useCallback((evt: React.ChangeEvent<HTMLInputElement>) => setPassword(evt.target.value), []);
 
-  const clearCookies = () => {
-    document.cookie.split(';').forEach((cookie) => {
-      const name = cookie.split('=')[0]?.trim();
-      if (!name) {
-        return;
-      }
-      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`;
-    });
-  };
-
   const clearLoginState = () => {
-    clearCurrentUser();
     window.localStorage.removeItem('EncqB64-user');
-    clearCookies();
   };
 
   const containerClassName = classnames(styles.container, {
@@ -136,7 +123,14 @@ const Login: React.FC = () => {
 
       try {
 
-        clearLoginState();
+        await fetch("/openmrs/ws/rest/v1/session", {
+          method: "DELETE",
+          credentials: "include",
+        }).then(response => {
+          console.log('response - delete session', response);
+        }).catch((err) => {
+          console.log('error - delete session', err);
+        })
         setIsLoggingIn(true);
 
         const sessionStore = await refetchCurrentUser(currentUsername, currentPassword);
