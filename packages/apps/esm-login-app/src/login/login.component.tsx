@@ -13,6 +13,7 @@ import {
   useConnectivity,
   useSession,
   openmrsFetch,
+  clearCurrentUser,
 } from '@openmrs/esm-framework';
 import { type ConfigSchema } from '../config-schema';
 import Logo from '../logo.component';
@@ -83,6 +84,23 @@ const Login: React.FC = () => {
   const changeUsername = useCallback((evt: React.ChangeEvent<HTMLInputElement>) => setUsername(evt.target.value), []);
   const changePassword = useCallback((evt: React.ChangeEvent<HTMLInputElement>) => setPassword(evt.target.value), []);
 
+  const clearCookies = () => {
+    document.cookie.split(';').forEach((cookie) => {
+      const name = cookie.split('=')[0]?.trim();
+      if (!name) {
+        return;
+      }
+      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`;
+    });
+  };
+
+  const clearLoginState = () => {
+    clearCurrentUser();
+    window.localStorage.removeItem('EncqB64-user');
+    clearCookies();
+  };
+
   const containerClassName = classnames(styles.container, {
     [styles.containerWithImage]: !!background.image,
     [styles.containerWithColor]: !background.image && !!background.color,
@@ -117,6 +135,8 @@ const Login: React.FC = () => {
       }
 
       try {
+
+        clearLoginState();
         setIsLoggingIn(true);
 
         const sessionStore = await refetchCurrentUser(currentUsername, currentPassword);
@@ -143,14 +163,14 @@ const Login: React.FC = () => {
                 console.log('Response from POST request:', responseBody);
                 if (response.status === 401) {
                   console.log('Unauthorized response from POST request:', responseBody);
+                  clearLoginState();
                   setErrorMessage('Unauthorized. Please log in again. ' + JSON.parse(responseBody).detail);
-                  //return;
                   setIsLoggingIn(false);
                   return false;
                 }
                 if (responseBody) {
                   authenticated = true;
-                  window.localStorage.setItem('EncqB64-user', btoa(JSON.stringify(responseBody)));
+                  window.localStorage.setItem('EncqB64-user', btoa(JSON.stringify(JSON.parse(responseBody))));
                   if (authenticated) {
                     if (session.sessionLocation) {
                       let to = loginLinks?.loginSuccess || '/home';
@@ -178,6 +198,7 @@ const Login: React.FC = () => {
                 } else {
                   setUsername('');
                   setPassword('');
+                  clearLoginState();
                   authenticated = false;
                   setErrorMessage('Smart card agent is not running!');
                   return false;
@@ -186,6 +207,7 @@ const Login: React.FC = () => {
               .catch((error) => {
                 setUsername('');
                 setPassword('');
+                clearLoginState();
                 console.error('Error during POST request 3:', error);
                 setErrorMessage('Smart card agent is not running!');
                 return false;
