@@ -162,7 +162,7 @@ const Login: React.FC = () => {
                   setIsLoggingIn(false);
                   return false;
                 }
-                if (responseBody) {
+                if (response.status !== 500 && responseBody ) {
                   authenticated = true;
                   window.localStorage.setItem('EncqB64-user', btoa(JSON.stringify(JSON.parse(responseBody))));
                   if (authenticated) {

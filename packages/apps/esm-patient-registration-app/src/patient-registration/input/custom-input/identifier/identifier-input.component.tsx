@@ -131,6 +131,7 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
           Authorization: 'Bearer ' + user.accessToken,
         },
       });
+      console.log(result.data);
       if (!result.data?.identifier) {
         return;
       }

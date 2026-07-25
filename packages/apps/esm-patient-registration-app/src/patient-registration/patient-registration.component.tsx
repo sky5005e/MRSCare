@@ -72,7 +72,7 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
   const validationSchema = getValidationSchema(config, t);
   
   const handlePageLoad = async (isEditMode: boolean) => {
-    console.log('handlePageLoad called');
+    console.log('handlePageLoad isEditMode ', isEditMode);
     const identifierValue = initialFormValues.identifiers;
     if (isEditMode && identifierValue && identifierValue.idCard) {
       try {
@@ -90,7 +90,9 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
         }).then(async(response) => {
           const data = await response.json();
             console.log('Response from decrypt API:', data);
-            initialFormValues.address = data.address;
+            setTimeout(() => {
+              initialFormValues.address = data.address;
+            }, 3000);
           })
           .catch((error) => {
             console.error('Error posting data:', error);
@@ -99,7 +101,7 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
     }
   };
 
-  const handleWSConnection = async () => {
+  const handleWSConnection = () => {
     console.log('handleWSConnection called');
     // Create WebSocket connection
     const socket = new WebSocket('ws://localhost:8765/api/ws/v1/smartcard/?token=12');
@@ -120,22 +122,20 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
     // Listen for messages
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      window.localStorage.removeItem('patientIdentifierSet')
+      window.localStorage.removeItem('patientIdentifierSet');
       console.log('Received:', data);
       console.log('payload :', data.payload.reader);
 
-      //alert(`Received: ${event.data}`);
       if (data.type === 'card_removed' || data.type === 'card_inserted') {
         showSnackbar({
           isLowContrast: true,
           kind: 'warning',
           title: 'Card Reader Event',
-          subtitle: JSON.parse(event.data).payload?.reader
+          subtitle: data.payload?.reader
             ? `Card Reader: ${data.type} - ${data.payload.reader}`
             : 'No reader information available',
         });
-      }
-      else {
+      } else {
         console.log(`Card Reader: ${data.type} - ${data.payload.reader}`);
       }
     };
@@ -156,25 +156,17 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
     };
   };
 
-  const hasLoadedRef = useRef(false);
-
-useEffect(() => {
-  console.log('use effect 1')
-  if (hasLoadedRef.current) return;
-  hasLoadedRef.current = true;
-  handlePageLoad(inEditMode);
-}, [inEditMode, uuidOfPatientToEdit]);
 
   useEffect(() => {
-    console.log('use effect 2')
-  
-    // eslint-disable-next-line no-console
-    console.log('Initial Form Values:', initialFormValues);
+    console.log('use effect 2');
     exportedInitialFormValuesForTesting = initialFormValues;
-    
+    console.log('Is Edit Page', inEditMode);
     console.log('handle WS Connection', 'handleWSConnection');
     handleWSConnection();
-
+    setTimeout(() => {
+       handlePageLoad(inEditMode);
+    }, 2000);
+    
   }, [initialFormValues]);
 
 
