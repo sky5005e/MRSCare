@@ -13,7 +13,6 @@ import {
   usePatient,
   usePatientPhoto,
   openmrsFetch,
-  ExtensionSlot,
 } from '@openmrs/esm-framework';
 import { builtInSections, type RegistrationConfig, type SectionDefinition } from '../config-schema';
 import { cancelRegistration, filterOutUndefinedPatientIdentifiers, scrollIntoView } from './patient-registration-utils';
@@ -71,7 +70,9 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
   const savePatientTransactionManager = useRef(new SavePatientTransactionManager());
   const validationSchema = getValidationSchema(config, t);
   
-  const handlePageLoad = async (isEditMode: boolean) => {
+    const [loadcount, setLoadcount] = useState(0);
+
+  const handlePageLoad = async (isEditMode : boolean | undefined) => {
     console.log('handlePageLoad isEditMode ', isEditMode);
     const identifierValue = initialFormValues.identifiers;
     if (isEditMode && identifierValue && identifierValue.idCard) {
@@ -80,7 +81,7 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
         const encoded = window.localStorage.getItem('EncqB64-user');
         const user = encoded ? JSON.parse(atob(encoded)) : null;
         // Making the POST request
-        await window.fetch(`http://localhost:8765/api/rest/v1/patient/decrypt`, {
+         await window.fetch(`http://localhost:8765/api/rest/v1/patient/decrypt`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -88,11 +89,15 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
           },
           body: JSON.stringify( payload),
         }).then(async(response) => {
+          if(response.status !== 500 && response.status !==401)
+          {
           const data = await response.json();
             console.log('Response from decrypt API:', data);
-            setTimeout(() => {
-              initialFormValues.address = data.address;
-            }, 3000);
+             initialFormValues.address = data.address;
+          }
+          else {
+            console.log('error in the calling ' + response);
+          }
           })
           .catch((error) => {
             console.error('Error posting data:', error);
@@ -101,73 +106,20 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
     }
   };
 
-  const handleWSConnection = () => {
-    console.log('handleWSConnection called');
-    // Create WebSocket connection
-    const socket = new WebSocket('ws://localhost:8765/api/ws/v1/smartcard/?token=12');
-
-    // Connection opened
-    socket.onopen = () => {
-      console.log('Connected to WebSocket server');
-
-      // Send a message
-      socket.send(
-        JSON.stringify({
-          type: 'hello',
-          message: 'Hello Server',
-        }),
-      );
-    };
-
-    // Listen for messages
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      window.localStorage.removeItem('patientIdentifierSet');
-      console.log('Received:', data);
-      console.log('payload :', data.payload.reader);
-
-      if (data.type === 'card_removed' || data.type === 'card_inserted') {
-        showSnackbar({
-          isLowContrast: true,
-          kind: 'warning',
-          title: 'Card Reader Event',
-          subtitle: data.payload?.reader
-            ? `Card Reader: ${data.type} - ${data.payload.reader}`
-            : 'No reader information available',
-        });
-      } else {
-        console.log(`Card Reader: ${data.type} - ${data.payload.reader}`);
-      }
-    };
-
-    // Handle errors
-    socket.onerror = (error) => {
-      console.error('WebSocket Error:', error);
-    };
-
-    // Handle connection close
-    socket.onclose = () => {
-      console.log('Disconnected from WebSocket server');
-    };
-
-    // Cleanup on component unmount
-    return () => {
-      socket.close();
-    };
-  };
-
 
   useEffect(() => {
-    console.log('use effect 2');
+    setLoadcount((count) => count + 1);
+    console.log('use effect ' +  loadcount);
+      
     exportedInitialFormValuesForTesting = initialFormValues;
-    console.log('Is Edit Page', inEditMode);
-    console.log('handle WS Connection', 'handleWSConnection');
-    handleWSConnection();
-    setTimeout(() => {
-       handlePageLoad(inEditMode);
-    }, 2000);
+    if(initialFormValues.address && loadcount >=2)
+     {
+       console.log('checking all the updates from initialFormValues', initialFormValues);
     
-  }, [initialFormValues]);
+       handlePageLoad(inEditMode);
+     }
+     
+  }, [initialFormValues, initialAddressFieldValues, inEditMode]);
 
 
 
