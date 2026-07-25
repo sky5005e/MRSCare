@@ -156,24 +156,30 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
     };
   };
 
+  const hasLoadedRef = useRef(false);
+
+useEffect(() => {
+  console.log('use effect 1')
+  if (hasLoadedRef.current) return;
+  hasLoadedRef.current = true;
+  handlePageLoad(inEditMode);
+}, [inEditMode, uuidOfPatientToEdit]);
+
   useEffect(() => {
+    console.log('use effect 2')
+  
     // eslint-disable-next-line no-console
     console.log('Initial Form Values:', initialFormValues);
     exportedInitialFormValuesForTesting = initialFormValues;
-    //console.log(initialFormValues);
-    // eslint-disable-next-line no-console
-    console.log('Is Edit Page', inEditMode);
-    handlePageLoad(inEditMode);
-    // eslint-disable-next-line no-console
+    
     console.log('handle WS Connection', 'handleWSConnection');
     handleWSConnection();
 
   }, [initialFormValues]);
-const  loadpatientcardid = ()=>
-{
-   //setFieldValue('identifiers.idCard.identifierValue', '12345');
-         
-}
+
+
+
+
   const sections: Array<SectionDefinition> = useMemo(() => {
     return config.sections
       .map(
