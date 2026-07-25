@@ -28,6 +28,7 @@ import { useInitialAddressFieldValues, useInitialFormValues, usePatientUuidMap }
 import BeforeSavePrompt from './before-save-prompt.component';
 import styles from './patient-registration.scss';
 
+
 let exportedInitialFormValuesForTesting = {} as FormValues;
 
 export interface PatientRegistrationProps {
@@ -69,45 +70,7 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
   const { data: photo } = usePatientPhoto(patientToEdit?.id);
   const savePatientTransactionManager = useRef(new SavePatientTransactionManager());
   const validationSchema = getValidationSchema(config, t);
-
-  function InitialDataLoader({ setFieldValue }) {
-    const isEditMode = !!(uuidOfPatientToEdit && patientToEdit);
-    console.log('Is Edit Mode:', isEditMode);
-    if (!isEditMode) {
-      useEffect(() => {
-        const loadPatient = async () => {
-          try {
-            const encoded = window.localStorage.getItem('EncqB64-user');
-            const user = encoded ? JSON.parse(atob(encoded)) : null;
-            //console.log(user);    // Parsed object
-
-            const result = await openmrsFetch<{ identifier: string }>('http://localhost:8765/api/rest/v1/patient/id', {
-              method: 'GET',
-              headers: {
-                Authorization: 'Bearer ' + user.accessToken,
-              },
-            });
-            if (!result.data) {
-              //alert("Failed to read patient");
-              return;
-            }
-            setFieldValue('identifiers.idCard.identifierValue', result.data.identifier);
-          } catch (e) {
-            console.error(e);
-
-            //alert('Failed to read patient');
-          }
-        };
-
-        loadPatient();
-      }, [setFieldValue]);
-
-      return null;
-    } else {
-      return null;
-    }
-  }
-
+  
   const handlePageLoad = async (isEditMode: boolean) => {
     console.log('handlePageLoad called');
     const identifierValue = initialFormValues.identifiers;
@@ -117,28 +80,22 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
         const encoded = window.localStorage.getItem('EncqB64-user');
         const user = encoded ? JSON.parse(atob(encoded)) : null;
         // Making the POST request
-        await openmrsFetch(`http://localhost:8765/api/rest/v1/patient/decrypt`, {
+        await window.fetch(`http://localhost:8765/api/rest/v1/patient/decrypt`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: 'Bearer ' + user.accessToken,
           },
-          body: payload,
-        })
-          .then((response) => {
-            // response.data holds the parsed JSON body
-            // Set address fields from response
-            console.log('Response from decrypt API:', response.data);
-            setTimeout(() => {
-              if (response.data.address) {
-                initialFormValues.address = response.data.address;
-              }
-            }, 500);
+          body: JSON.stringify( payload),
+        }).then(async(response) => {
+          const data = await response.json();
+            console.log('Response from decrypt API:', data);
+            initialFormValues.address = data.address;
           })
           .catch((error) => {
             console.error('Error posting data:', error);
           });
-      } catch (error) {}
+      } catch (error) { }
     }
   };
 
@@ -163,20 +120,24 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
     // Listen for messages
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
-
-      console.log('Received:', data.payload);
+      window.localStorage.removeItem('patientIdentifierSet')
+      console.log('Received:', data);
       console.log('payload :', data.payload.reader);
 
       //alert(`Received: ${event.data}`);
-
-      showSnackbar({
-        isLowContrast: true,
-        kind: 'warning',
-        title: 'Card Reader Event',
-        subtitle: JSON.parse(event.data).payload?.reader
-          ? `Card Reader: ${JSON.parse(event.data).payload.reader}`
-          : 'No reader information available',
-      });
+      if (data.type === 'card_removed' || data.type === 'card_inserted') {
+        showSnackbar({
+          isLowContrast: true,
+          kind: 'warning',
+          title: 'Card Reader Event',
+          subtitle: JSON.parse(event.data).payload?.reader
+            ? `Card Reader: ${data.type} - ${data.payload.reader}`
+            : 'No reader information available',
+        });
+      }
+      else {
+        console.log(`Card Reader: ${data.type} - ${data.payload.reader}`);
+      }
     };
 
     // Handle errors
@@ -206,8 +167,13 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
     // eslint-disable-next-line no-console
     console.log('handle WS Connection', 'handleWSConnection');
     handleWSConnection();
-  }, [initialFormValues]);
 
+  }, [initialFormValues]);
+const  loadpatientcardid = ()=>
+{
+   //setFieldValue('identifiers.idCard.identifierValue', '12345');
+         
+}
   const sections: Array<SectionDefinition> = useMemo(() => {
     return config.sections
       .map(
@@ -238,70 +204,61 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
         },
         body: payload,
       })
-        .then((response) => {
+        .then(async (response) => {
           // response.data holds the parsed JSON body
-
+          if (response.data.address) {
+            updatedFormValues.address =
+            {
+              address1: response.data.address.address1,
+              address2: response.data.address.address2,
+              cityVillage: response.data.address.cityVillage,
+              stateProvince: response.data.address.stateProvince,
+              country: response.data.address.country,
+              postalCode: updatedFormValues.address?.postalCode,
+            };
+          }
           console.log('Response from encrypt API:', response.data);
-          console.log(updatedFormValues);
-          const newupdatedFormValues = response.data;
-          console.log(newupdatedFormValues);
-          setTimeout(() => {
-            console.log('Calling savePatientForm with values:', newupdatedFormValues);
-            debugger;
-            console.log('initialFormValues.identifiers', initialFormValues['identifiers']);
-            savePatientForm(
-              !inEditMode,
-              newupdatedFormValues,
-              patientUuidMap,
-              initialAddressFieldValues,
-              capturePhotoProps,
-              location,
-              initialFormValues['identifiers'],
-              currentSession,
-              config,
-              savePatientTransactionManager.current,
-              abortController,
-            );
+          await savePatientForm(
+            !inEditMode,
+            updatedFormValues,
+            patientUuidMap,
+            initialAddressFieldValues,
+            capturePhotoProps,
+            location,
+            initialFormValues['identifiers'],
+            currentSession,
+            config,
+            savePatientTransactionManager.current,
+            abortController,
+          );
 
-            showSnackbar({
-              subtitle: inEditMode
-                ? t('updatePatientSuccessSnackbarSubtitle', "The patient's information has been successfully updated")
-                : t(
-                    'registerPatientSuccessSnackbarSubtitle',
-                    'The patient can now be found by searching for them using their name or ID number',
-                  ),
-              title: inEditMode
-                ? t('updatePatientSuccessSnackbarTitle', 'Patient Details Updated')
-                : t('registerPatientSuccessSnackbarTitle', 'New Patient Created'),
-              kind: 'success',
-              isLowContrast: true,
-            });
+          showSnackbar({
+            subtitle: inEditMode
+              ? t('updatePatientSuccessSnackbarSubtitle', "The patient's information has been successfully updated")
+              : t(
+                'registerPatientSuccessSnackbarSubtitle',
+                'The patient can now be found by searching for them using their name or ID number',
+              ),
+            title: inEditMode
+              ? t('updatePatientSuccessSnackbarTitle', 'Patient Details Updated')
+              : t('registerPatientSuccessSnackbarTitle', 'New Patient Created'),
+            kind: 'success',
+            isLowContrast: true,
+          });
 
-            const afterUrl = new URLSearchParams(search).get('afterUrl');
-            const redirectUrl = interpolateUrl(afterUrl || config.links.submitButton, {
-              patientUuid: values.patientUuid,
-            });
+          const afterUrl = new URLSearchParams(search).get('afterUrl');
+          const redirectUrl = interpolateUrl(afterUrl || config.links.submitButton, {
+            patientUuid: values.patientUuid,
+          });
 
-            setTarget(redirectUrl);
-          }, 4000);
+          setTarget(redirectUrl);
+          
         })
         .catch((error) => {
           console.error('Error posting data:', error);
         });
 
-      // await savePatientForm(
-      //   !inEditMode,
-      //   updatedFormValues,
-      //   patientUuidMap,
-      //   initialAddressFieldValues,
-      //   capturePhotoProps,
-      //   location,
-      //   initialFormValues['identifiers'],
-      //   currentSession,
-      //   config,
-      //   savePatientTransactionManager.current,
-      //   abortController,
-      // );
+      
     } catch (error) {
       if (error.responseBody?.error?.globalErrors) {
         error.responseBody.error.globalErrors.forEach((error) => {
@@ -384,7 +341,6 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
     >
       {(props) => (
         <Form className={styles.form}>
-          <InitialDataLoader setFieldValue={props.setFieldValue} />
           <BeforeSavePrompt when={Object.keys(props.touched).length > 0} redirect={target} />
           <div className={styles.formContainer}>
             {/* Navigation Sidebar */}

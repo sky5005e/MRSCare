@@ -1,10 +1,10 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useField, Field } from 'formik';
 import { Button } from '@carbon/react';
 import { TrashCan, Edit, Reset } from '@carbon/react/icons';
 import { type RegistrationConfig } from '../../../../config-schema';
-import { showModal, useConfig, UserHasAccess } from '@openmrs/esm-framework';
+import { openmrsFetch, showModal, useConfig, UserHasAccess } from '@openmrs/esm-framework';
 import { deleteIdentifierType, setIdentifierSource } from '../../../field/id/id-field.component';
 import { Input } from '../../basic-input/input/input.component';
 import { usePatientRegistrationContext } from '../../../patient-registration-context';
@@ -108,6 +108,45 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
       setFieldValue('identifiers', deleteIdentifierType(values.identifiers, fieldName));
     }
   };
+
+  useEffect(() => {
+    if (fieldName !== 'idCard') {
+      return;
+    }
+
+    if (window.localStorage.getItem('patientIdentifierSet') === 'true') {
+      return;
+    }
+
+    void loadPatient();
+  }, [fieldName]);
+
+  const loadPatient = async () => {
+    try {
+      const encoded = window.localStorage.getItem('EncqB64-user');
+      const user = encoded ? JSON.parse(atob(encoded)) : null;
+      const result = await openmrsFetch<{ identifier: string }>('http://localhost:8765/api/rest/v1/patient/id', {
+        method: 'GET',
+        headers: {
+          Authorization: 'Bearer ' + user.accessToken,
+        },
+      });
+      if (!result.data?.identifier) {
+        return;
+      }
+
+      setFieldValue(`identifiers.${fieldName}`, {
+        ...patientIdentifier,
+        identifierValue: result.data.identifier,
+        selectedSource,
+        autoGeneration,
+      } as PatientIdentifierValue);
+      window.localStorage.setItem('patientIdentifierSet', 'true');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
 
   const showEditButton = !required && hideInputField && (!!initialValue || manualEntryEnabled);
   const showResetButton =
