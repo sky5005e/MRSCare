@@ -10,3 +10,4 @@ export * from './storage';
 export * from './test-helpers';
 export * from './version';
 export * from './retry';
+export * from './smartcard-socket'

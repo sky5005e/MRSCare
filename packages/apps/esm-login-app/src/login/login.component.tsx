@@ -14,6 +14,8 @@ import {
   useSession,
   openmrsFetch,
   clearCurrentUser,
+  SmartReaderWSConnection,
+  showSnackbar,
 } from '@openmrs/esm-framework';
 import { type ConfigSchema } from '../config-schema';
 import Logo from '../logo.component';
@@ -56,6 +58,17 @@ const Login: React.FC = () => {
         navigate('/login');
       }
     }
+    SmartReaderWSConnection((data) => {
+       //console.log("Card event:", data);
+      showSnackbar({
+          isLowContrast: true,
+          kind: 'warning',
+          title: 'Card Reader Event',
+          subtitle: data.payload?.reader
+            ? `Card Reader: ${data.type} - ${data.payload.reader}`
+            : 'No reader information available',
+        })
+      },'ws://localhost:8765/api/ws/v1/smartcard/?token=login')
   }, [username, navigate, location, user, loginProvider]);
 
   useEffect(() => {
