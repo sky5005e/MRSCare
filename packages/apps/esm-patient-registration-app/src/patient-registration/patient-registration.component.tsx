@@ -140,7 +140,8 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
       const encoded = window.localStorage.getItem('EncqB64-user');
       const user = encoded ? JSON.parse(atob(encoded)) : null;
 
-      const payload = updatedFormValues;
+      const patient = updatedFormValues;
+      const payload = { editFlag : inEditMode, patientInformation: patient };
       // Making the POST request
       await window
         .fetch(`http://localhost:8765/api/rest/v1/patient/encrypt`, {
@@ -155,14 +156,15 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
           // response.data holds the parsed JSON body
           const responseBody = await response.text(); // or response.json()
           const responseData = JSON.parse(responseBody);
+          console.log('Response from encrypt API:', responseData);
           if (response.status !== 500 && responseBody) {
-            if (responseData.data.address) {
+            if (responseData.address) {
               updatedFormValues.address = {
-                address1: responseData.data.address.address1,
-                address2: responseData.data.address.address2,
-                cityVillage: responseData.data.address.cityVillage,
-                stateProvince: responseData.data.address.stateProvince,
-                country: responseData.data.address.country,
+                address1: responseData.address.address1,
+                address2: responseData.address.address2,
+                cityVillage: responseData.address.cityVillage,
+                stateProvince: responseData.address.stateProvince,
+                country: responseData.address.country,
                 postalCode: updatedFormValues.address?.postalCode,
               };
             }
@@ -207,13 +209,14 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
               title: inEditMode
                 ? t('updatePatientErrorSnackbarTitle', 'Patient Details Update Failed')
                 : t('registrationErrorSnackbarTitle', 'Patient Registration Failed'),
-              subtitle: responseData?.error?.message || 'An error occurred during the request.',
+              subtitle: responseData?.detail || 'An error occurred during the request.',
               kind: 'error',
             });
           }
         })
         .catch((error) => {
           console.error('Error posting data:', error);
+          throw error;
         });
     } catch (error) {
       if (error.responseBody?.error?.globalErrors) {
