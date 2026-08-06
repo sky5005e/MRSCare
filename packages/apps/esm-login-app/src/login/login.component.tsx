@@ -59,16 +59,16 @@ const Login: React.FC = () => {
       }
     }
     SmartReaderWSConnection((data) => {
-       //console.log("Card event:", data);
+      //console.log("Card event:", data);
       showSnackbar({
-          isLowContrast: true,
-          kind: 'warning',
-          title: 'Card Reader Event',
-          subtitle: data.payload?.reader
-            ? `Card Reader: ${data.type} - ${data.payload.reader}`
-            : 'No reader information available',
-        })
-      },'ws://localhost:8765/api/ws/v1/smartcard/?token=login')
+        isLowContrast: true,
+        kind: 'warning',
+        title: 'Card Reader Event',
+        subtitle: data.payload?.reader
+          ? `Card Reader: ${data.type} - ${data.payload.reader}`
+          : 'No reader information available',
+      });
+    }, 'ws://localhost:8765/api/ws/v1/smartcard/?token=login');
   }, [username, navigate, location, user, loginProvider]);
 
   useEffect(() => {
@@ -135,15 +135,16 @@ const Login: React.FC = () => {
       }
 
       try {
-
-        await fetch("/openmrs/ws/rest/v1/session", {
-          method: "DELETE",
-          credentials: "include",
-        }).then(response => {
-          console.log('response - delete session', response);
-        }).catch((err) => {
-          console.log('error - delete session', err);
+        await fetch('/openmrs/ws/rest/v1/session', {
+          method: 'DELETE',
+          credentials: 'include',
         })
+          .then((response) => {
+            console.log('response - delete session', response);
+          })
+          .catch((err) => {
+            console.log('error - delete session', err);
+          });
         setIsLoggingIn(true);
 
         const sessionStore = await refetchCurrentUser(currentUsername, currentPassword);
@@ -175,7 +176,7 @@ const Login: React.FC = () => {
                   setIsLoggingIn(false);
                   return false;
                 }
-                if (response.status !== 500 && responseBody ) {
+                if (response.status !== 500 && responseBody) {
                   authenticated = true;
                   window.localStorage.setItem('EncqB64-user', btoa(JSON.stringify(JSON.parse(responseBody))));
                   if (authenticated) {

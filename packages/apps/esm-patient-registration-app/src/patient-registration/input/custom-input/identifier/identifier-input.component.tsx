@@ -113,6 +113,8 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
     if (fieldName !== 'idCard') {
       return;
     }
+    const card_data = window.localStorage.getItem('patient-Identifier-CardId');
+    let cardid = card_data ? JSON.parse(card_data) : null;
 
     if (window.localStorage.getItem('patientIdentifierSet') === 'true') {
       return;
@@ -147,7 +149,6 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
       console.error(e);
     }
   };
-
 
   const showEditButton = !required && hideInputField && (!!initialValue || manualEntryEnabled);
   const showResetButton =
@@ -194,7 +195,8 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
               onClick={handleEdit}
               iconDescription={t('editIdentifierTooltip', 'Edit')}
               disabled={disabled}
-              hasIconOnly>
+              hasIconOnly
+            >
               <Edit size={16} />
             </Button>
           </UserHasAccess>
@@ -207,7 +209,8 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
               onClick={handleReset}
               iconDescription={t('resetIdentifierTooltip', 'Reset')}
               disabled={disabled}
-              hasIconOnly>
+              hasIconOnly
+            >
               <Reset size={16} />
             </Button>
           </UserHasAccess>
@@ -220,7 +223,8 @@ const IdentifierInput: React.FC<IdentifierInputProps> = ({ patientIdentifier, fi
               onClick={handleDelete}
               iconDescription={t('deleteIdentifierTooltip', 'Delete')}
               disabled={disabled}
-              hasIconOnly>
+              hasIconOnly
+            >
               <TrashCan size={16} />
             </Button>
           </UserHasAccess>

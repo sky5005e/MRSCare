@@ -56,7 +56,10 @@ export async function fetchCurrentPatient(
     ]);
 
     if (onlinePatient.ok) {
-      return onlinePatient.data;
+      console.log('onlinePatient.data', onlinePatient.data);
+      const finalData = await GetDecryptData(onlinePatient.data);
+      console.log('finalData .data', finalData);
+      return finalData; //onlinePatient.data;
     }
 
     if (offlinePatient) {
@@ -70,7 +73,101 @@ export async function fetchCurrentPatient(
 
   return null;
 }
+/*
+async function GetDecryptData(patientdata : fhir.Patient) : Promise<fhir.Patient>  {
+    console.log(patientdata);
+    const identifier = (patientdata?.identifier ?? []) as Array<{
+  type: {
+    text: string;
+  };
+  value: string;
+}>;
+const identifierText = identifier[1]?.type?.text;
+const identifierValue = identifier[1]?.value;
+    
+    if (patientdata && identifier && identifierValue && identifierText === 'ID Card') {
+      try {
+        const payload = patientdata;
+        const encoded = window.localStorage.getItem('EncqB64-user');
+        const user = encoded ? JSON.parse(atob(encoded)) : null;
+        // Making the POST request
+         await window.fetch(`http://localhost:8765/api/rest/v1/patient/decrypt`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + user.accessToken,
+          },
+          body: JSON.stringify( payload),
+        }).then(async(response) => {
+          if(response.status !== 500 && response.status !==401)
+          {
+          const data = await response.json();
+            console.log('Response from decrypt API:', data);
+             return data;;
+          }
+          else {
+            console.log('error in the calling ' + response);
+            return patientdata;
+          }
+          })
+          .catch((error) => {
+            console.error('Error posting data:', error);
+            return patientdata;
+          });
+      } catch (error) { 
+        return patientdata;
+      }
+    }
+    else
+    {
+      return patientdata;
+    }
+};
+*/
 
+async function GetDecryptData(patientdata: fhir.Patient): Promise<fhir.Patient> {
+  console.log(patientdata);
+
+  const identifier = (patientdata?.identifier ?? []) as Array<{
+    type?: {
+      text?: string;
+    };
+    value?: string;
+  }>;
+
+  const idCard = identifier.find((i) => i.type?.text === 'ID Card');
+
+  if (!patientdata || !idCard?.value) {
+    return patientdata;
+  }
+
+  try {
+    const encoded = localStorage.getItem('EncqB64-user');
+    const user = encoded ? JSON.parse(atob(encoded)) : null;
+
+    const response = await fetch('http://localhost:8765/api/rest/v1/patient/decrypt', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${user?.accessToken ?? ''}`,
+      },
+      body: JSON.stringify(patientdata),
+    });
+
+    if (!response.ok) {
+      console.error('Decrypt API failed:', response.status);
+      return patientdata;
+    }
+
+    const data = await response.json();
+    console.log('Response from decrypt API:', data);
+
+    return data as fhir.Patient;
+  } catch (error) {
+    console.error('Error posting data:', error);
+    return patientdata;
+  }
+}
 async function getOfflineRegisteredPatientAsFhirPatient(patientUuid: string): Promise<fhir.Patient | null> {
   const patientRegistrationSyncItems = await getSynchronizationItems<{
     fhirPatient: fhir.Patient;

@@ -27,7 +27,6 @@ import { useInitialAddressFieldValues, useInitialFormValues, usePatientUuidMap }
 import BeforeSavePrompt from './before-save-prompt.component';
 import styles from './patient-registration.scss';
 
-
 let exportedInitialFormValuesForTesting = {} as FormValues;
 
 export interface PatientRegistrationProps {
@@ -69,10 +68,11 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
   const { data: photo } = usePatientPhoto(patientToEdit?.id);
   const savePatientTransactionManager = useRef(new SavePatientTransactionManager());
   const validationSchema = getValidationSchema(config, t);
-  
-    const [loadcount, setLoadcount] = useState(0);
 
+  //const [loadcount, setLoadcount] = useState(0);
+  /*
   const handlePageLoad = async (isEditMode : boolean | undefined) => {
+    console.log(patientToEdit);
     console.log('handlePageLoad isEditMode ', isEditMode);
     const identifierValue = initialFormValues.identifiers;
     if (isEditMode && identifierValue && identifierValue.idCard) {
@@ -106,23 +106,19 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
     }
   };
 
-
+*/
   useEffect(() => {
-    setLoadcount((count) => count + 1);
-    console.log('use effect ' +  loadcount);
-      
+    // setLoadcount((count) => count + 1);
+    // console.log('use effect ' +  loadcount);
+
     exportedInitialFormValuesForTesting = initialFormValues;
-    if(initialFormValues.address && loadcount >=2)
-     {
-       console.log('checking all the updates from initialFormValues', initialFormValues);
-    
-       handlePageLoad(inEditMode);
-     }
-     
+    // if(initialFormValues.address && loadcount >=2)
+    //  {
+    //    console.log('checking all the updates from initialFormValues', initialFormValues);
+
+    //    //handlePageLoad(inEditMode);
+    //  }
   }, [initialFormValues, initialAddressFieldValues, inEditMode]);
-
-
-
 
   const sections: Array<SectionDefinition> = useMemo(() => {
     return config.sections
@@ -146,69 +142,79 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ savePa
 
       const payload = updatedFormValues;
       // Making the POST request
-      await openmrsFetch(`http://localhost:8765/api/rest/v1/patient/encrypt`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + user.accessToken,
-        },
-        body: payload,
-      })
+      await window
+        .fetch(`http://localhost:8765/api/rest/v1/patient/encrypt`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + user.accessToken,
+          },
+          body: JSON.stringify(payload),
+        })
         .then(async (response) => {
           // response.data holds the parsed JSON body
-          if (response.data.address) {
-            updatedFormValues.address =
-            {
-              address1: response.data.address.address1,
-              address2: response.data.address.address2,
-              cityVillage: response.data.address.cityVillage,
-              stateProvince: response.data.address.stateProvince,
-              country: response.data.address.country,
-              postalCode: updatedFormValues.address?.postalCode,
-            };
+          const responseBody = await response.text(); // or response.json()
+          const responseData = JSON.parse(responseBody);
+          if (response.status !== 500 && responseBody) {
+            if (responseData.data.address) {
+              updatedFormValues.address = {
+                address1: responseData.data.address.address1,
+                address2: responseData.data.address.address2,
+                cityVillage: responseData.data.address.cityVillage,
+                stateProvince: responseData.data.address.stateProvince,
+                country: responseData.data.address.country,
+                postalCode: updatedFormValues.address?.postalCode,
+              };
+            }
+            console.log('Response from encrypt API:', responseData.data);
+            await savePatientForm(
+              !inEditMode,
+              updatedFormValues,
+              patientUuidMap,
+              initialAddressFieldValues,
+              capturePhotoProps,
+              location,
+              initialFormValues['identifiers'],
+              currentSession,
+              config,
+              savePatientTransactionManager.current,
+              abortController,
+            );
+
+            showSnackbar({
+              subtitle: inEditMode
+                ? t('updatePatientSuccessSnackbarSubtitle', "The patient's information has been successfully updated")
+                : t(
+                    'registerPatientSuccessSnackbarSubtitle',
+                    'The patient can now be found by searching for them using their name or ID number',
+                  ),
+              title: inEditMode
+                ? t('updatePatientSuccessSnackbarTitle', 'Patient Details Updated')
+                : t('registerPatientSuccessSnackbarTitle', 'New Patient Created'),
+              kind: 'success',
+              isLowContrast: true,
+            });
+
+            const afterUrl = new URLSearchParams(search).get('afterUrl');
+            const redirectUrl = interpolateUrl(afterUrl || config.links.submitButton, {
+              patientUuid: values.patientUuid,
+            });
+
+            setTarget(redirectUrl);
+          } else {
+            console.log('error in the calling ' + response);
+            showSnackbar({
+              title: inEditMode
+                ? t('updatePatientErrorSnackbarTitle', 'Patient Details Update Failed')
+                : t('registrationErrorSnackbarTitle', 'Patient Registration Failed'),
+              subtitle: responseData?.error?.message || 'An error occurred during the request.',
+              kind: 'error',
+            });
           }
-          console.log('Response from encrypt API:', response.data);
-          await savePatientForm(
-            !inEditMode,
-            updatedFormValues,
-            patientUuidMap,
-            initialAddressFieldValues,
-            capturePhotoProps,
-            location,
-            initialFormValues['identifiers'],
-            currentSession,
-            config,
-            savePatientTransactionManager.current,
-            abortController,
-          );
-
-          showSnackbar({
-            subtitle: inEditMode
-              ? t('updatePatientSuccessSnackbarSubtitle', "The patient's information has been successfully updated")
-              : t(
-                'registerPatientSuccessSnackbarSubtitle',
-                'The patient can now be found by searching for them using their name or ID number',
-              ),
-            title: inEditMode
-              ? t('updatePatientSuccessSnackbarTitle', 'Patient Details Updated')
-              : t('registerPatientSuccessSnackbarTitle', 'New Patient Created'),
-            kind: 'success',
-            isLowContrast: true,
-          });
-
-          const afterUrl = new URLSearchParams(search).get('afterUrl');
-          const redirectUrl = interpolateUrl(afterUrl || config.links.submitButton, {
-            patientUuid: values.patientUuid,
-          });
-
-          setTarget(redirectUrl);
-          
         })
         .catch((error) => {
           console.error('Error posting data:', error);
         });
-
-      
     } catch (error) {
       if (error.responseBody?.error?.globalErrors) {
         error.responseBody.error.globalErrors.forEach((error) => {
